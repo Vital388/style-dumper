@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- Step 1: Target Selection -->
+    <section class="card">
+      <h3>1. Choose Target Element</h3>
+      <div class="target-options">
+        <label class="target-option">
+          <input type="radio" name="target" value="selected" checked>
+          <span class="option-label">
+            <strong>Selected Element ($0)</strong>
+            <small>Use currently selected element in DevTools</small>
+          </span>
+        </label>
+        <label class="target-option">
+          <input type="radio" name="target" value="selector">
+          <span class="option-label">
+            <strong>CSS Selector</strong>
+            <input id="selector" placeholder="e.g., .my-class, #my-id" />
+          </span>
+        </label>
+        <label class="target-option">
+          <input type="radio" name="target" value="picker">
+          <span class="option-label">
+            <strong>Pick Element</strong>
+            <small>Click to select element on page</small>
+          </span>
+          <button id="picker" type="button">Start Picking</button>
+        </label>
+      </div>
+    </section>
+
+    <!-- Step 2: Extract Options -->
+    <section class="card">
+      <h3>2. Choose What to Extract</h3>
+      <div class="extract-options">
+        <div class="option-group">
+          <h4>Style Mode</h4>
+          <label><input type="radio" name="mode" value="rules" checked> <strong>Rules Only</strong> <small>(properties set by CSS rules)</small></label>
+          <label><input type="radio" name="mode" value="all"> <strong>All Computed</strong> <small>(every computed property)</small></label>
+        </div>
+        <div class="option-group">
+          <h4>Include</h4>
+          <label><input type="checkbox" id="children"> <strong>Child Elements</strong> <small>(entire subtree)</small></label>
+          <label><input type="checkbox" id="pseudo"> <strong>Pseudo-elements</strong> <small>(::before, ::after)</small></label>
+          <label><input type="checkbox" id="html"> <strong>HTML Structure</strong> <small>(export with inline styles)</small></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3: Extract Button -->
+    <section class="card extract-section">
+      <button id="extract" class="extract-btn">
+        <span class="btn-icon">⚡</span>
+        Extract Styles
+      </button>
+    </section>
+
+    <!-- Step 4: Results -->
+    <section class="card results-section" style="display: none;">
+      <h3>Results</h3>
+      <div class="results-actions">
+        <button id="copy" class="action-btn">📋 Copy JSON</button>
+        <button id="download" class="action-btn">💾 Download</button>
+        <button id="clear" class="action-btn secondary">🗑️ Clear</button>
+      </div>
+      <div class="results-stats">
+        <span id="stats"></span>
+      </div>
+    </section>
+
+    <!-- Output -->
+    <section class="output-section">
+      <pre id="output"></pre>
+    </section>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>

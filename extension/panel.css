@@ -1,0 +1,337 @@
+/* Reset and base styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #333;
+  background: #f5f5f5;
+  min-height: 100vh;
+}
+
+.container {
+  padding: 12px;
+  max-width: 100%;
+}
+
+/* Card layout */
+.card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.card h3 {
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.card h4 {
+  color: #34495e;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  margin-top: 12px;
+}
+
+.card h4:first-child {
+  margin-top: 0;
+}
+
+/* Target selection */
+.target-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.target-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.target-option:hover {
+  background: #f8f9fa;
+  border-color: #007acc;
+}
+
+.target-option input[type="radio"] {
+  margin-right: 8px;
+  margin-top: 2px;
+}
+
+.target-option input[type="radio"]:checked + .option-label {
+  color: #007acc;
+}
+
+.option-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.option-label strong {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.option-label small {
+  color: #666;
+  font-size: 11px;
+}
+
+.option-label input {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 11px;
+  max-width: 200px;
+}
+
+#picker {
+  margin-left: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: #007acc;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#picker:hover {
+  background: #005999;
+}
+
+/* Extract options */
+.extract-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.option-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.option-group input[type="radio"],
+.option-group input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.option-group strong {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.option-group small {
+  color: #666;
+  font-style: italic;
+}
+
+/* Extract button */
+.extract-section {
+  text-align: center;
+  padding: 20px;
+}
+
+.extract-btn {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.extract-btn:hover {
+  background: linear-gradient(135deg, #218838, #1ea085);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4);
+}
+
+.extract-btn:active {
+  transform: translateY(0);
+}
+
+.btn-icon {
+  font-size: 16px;
+}
+
+/* Results section */
+.results-section {
+  border-color: #28a745;
+  background: linear-gradient(to right, #f8fff9, #ffffff);
+}
+
+.results-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  border: 1px solid #007acc;
+  background: #007acc;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn:hover {
+  background: #005999;
+  border-color: #005999;
+}
+
+.action-btn.secondary {
+  background: #6c757d;
+  border-color: #6c757d;
+}
+
+.action-btn.secondary:hover {
+  background: #545b62;
+  border-color: #545b62;
+}
+
+.results-stats {
+  font-size: 11px;
+  color: #666;
+  padding: 4px 0;
+}
+
+/* Output section */
+.output-section {
+  margin-top: 12px;
+}
+
+#output {
+  background: #2d3748;
+  color: #e2e8f0;
+  padding: 16px;
+  border-radius: 6px;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow: auto;
+  max-height: 400px;
+  border: 1px solid #4a5568;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#output:empty {
+  display: none;
+}
+
+#output:not(:empty) {
+  display: block;
+}
+
+/* JSON syntax highlighting (basic) */
+#output .json-key {
+  color: #63b3ed;
+}
+
+#output .json-string {
+  color: #68d391;
+}
+
+#output .json-number {
+  color: #f6ad55;
+}
+
+#output .json-boolean {
+  color: #fc8181;
+}
+
+#output .json-null {
+  color: #a0aec0;
+}
+
+/* Loading state */
+.extract-btn.loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.extract-btn.loading .btn-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 400px) {
+  .results-actions {
+    flex-direction: column;
+  }
+  
+  .action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Scrollbar styling */
+#output::-webkit-scrollbar {
+  width: 8px;
+}
+
+#output::-webkit-scrollbar-track {
+  background: #4a5568;
+}
+
+#output::-webkit-scrollbar-thumb {
+  background: #718096;
+  border-radius: 4px;
+}
+
+#output::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
