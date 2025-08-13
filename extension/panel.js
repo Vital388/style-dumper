@@ -41,17 +41,16 @@ pageEval(function(){
   }
 });
 
-let __dumperSource = null;
 async function ensureDumperSource() {
-  if (__dumperSource) return __dumperSource;
   try {
-    const resp = await fetch(chrome.runtime.getURL('dumper.js'));
-    __dumperSource = await resp.text();
+    // Bust extension cache so edits to dumper.js are picked up without reopening DevTools
+    const url = chrome.runtime.getURL('dumper.js') + `?t=${Date.now()}`;
+    const resp = await fetch(url, { cache: 'no-store' });
+    return await resp.text();
   } catch (e) {
     console.error('Failed to load dumper.js', e);
-    __dumperSource = null;
+    return null;
   }
-  return __dumperSource;
 }
 
 async function runDump(params) {
