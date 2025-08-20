@@ -80,6 +80,128 @@ window.__STYLE_DUMPER__ = function(params) {
 
   function toObj(cs) { const o = {}; for (const p of cs) o[p] = cs.getPropertyValue(p); return o; }
 
+  // Heuristic specificity weight for a selector. Higher means more specific.
+  function computeSpecificityWeight(selector) {
+    try {
+      const sel = String(selector || '');
+      // Remove strings and comments to reduce false positives
+      const cleaned = sel
+        .replace(/"[^"]*"|'[^']*'/g, '')
+        .replace(/\/\*[^*]*\*+/g, '')
+        .replace(/:(?:is|where)\(([^)]*)\)/g, '($1)');
+      const idCount = (cleaned.match(/#[a-zA-Z0-9_-]+/g) || []).length;
+      const classCount = (cleaned.match(/\.[a-zA-Z0-9_-]+/g) || []).length;
+      const attrCount = (cleaned.match(/\[[^\]]+\]/g) || []).length;
+      // Pseudo-classes (single :) but not pseudo-elements (::)
+      const pseudoClassCount = (cleaned.match(/:(?!:)[a-zA-Z0-9_-]+(\([^)]*\))?/g) || []).length;
+      const pseudoElementCount = (cleaned.match(/::[a-zA-Z0-9_-]+/g) || []).length;
+      // Rough element/tag count: remove ids, classes, attributes, pseudo parts, combinators
+      const stripped = cleaned
+        .replace(/#[a-zA-Z0-9_-]+/g, ' ')
+        .replace(/\.[a-zA-Z0-9_-]+/g, ' ')
+        .replace(/\[[^\]]+\]/g, ' ')
+        .replace(/::[a-zA-Z0-9_-]+/g, ' ')
+        .replace(/:(?!:)[a-zA-Z0-9_-]+(\([^)]*\))?/g, ' ')
+        .replace(/[>+~]/g, ' ');
+      const typeCount = (stripped.match(/\b[a-zA-Z][a-zA-Z0-9_-]*\b/g) || []).length;
+      // Weight: inline >> id >> class/attr/pseudo-class >> type/pseudo-element
+      const weight = idCount * 1_000 + (classCount + attrCount + pseudoClassCount) * 10 + (typeCount + pseudoElementCount);
+      return weight;
+    } catch {
+      return 0;
+    }
+  }
+
+  
+
+  function collectPropertyCandidates(el) {
+    const byProp = new Map();
+    const props = new Set();
+
+    function addCandidate(prop, info) {
+      props.add(prop);
+      if (!byProp.has(prop)) byProp.set(prop, []);
+      byProp.get(prop).push(info);
+    }
+
+    // Inline style candidates
+    try {
+      for (let i = 0; i < el.style.length; i++) {
+        const p = el.style[i];
+        addCandidate(p, {
+          src: 'inline',
+          imp: el.style.getPropertyPriority(p) === 'important',
+          sel: null,
+          sp: 1_000_000, // Inline > any selector
+          at: [],
+          ord: Number.MAX_SAFE_INTEGER
+        });
+      }
+    } catch {}
+
+    // Stylesheet rule candidates
+    let ordinal = 0;
+    function walkRules(rules, activeAts) {
+      for (let rIdx = 0; rIdx < rules.length; rIdx++) {
+        const r = rules[rIdx];
+        try {
+          if (r.type === CSSRule.STYLE_RULE) {
+            const list = (r.selectorText || '').split(',');
+            for (let i = 0; i < list.length; i++) {
+              const sel = list[i].trim();
+              if (!sel) continue;
+              try {
+                if (!el.matches(sel)) continue;
+              } catch { continue; }
+              const sp = computeSpecificityWeight(sel);
+              for (let j = 0; j < r.style.length; j++) {
+                const p = r.style[j];
+                addCandidate(p, {
+                  src: 'rule',
+                  imp: r.style.getPropertyPriority(p) === 'important',
+                  sel,
+                  sp,
+                  at: activeAts,
+                  ord: ++ordinal
+                });
+              }
+            }
+          } else if (r.type === CSSRule.MEDIA_RULE) {
+            let ok = false;
+            try { ok = matchMedia(r.media.mediaText).matches; } catch {}
+            if (ok) walkRules(r.cssRules || [], activeAts.concat(['@media ' + r.media.mediaText]));
+          } else if (r.type === CSSRule.SUPPORTS_RULE) {
+            let ok = false;
+            try { ok = CSS && CSS.supports && CSS.supports(r.conditionText); } catch {}
+            if (ok) walkRules(r.cssRules || [], activeAts.concat(['@supports ' + r.conditionText]));
+          } else if ('cssRules' in r && r.cssRules) {
+            // Other group rules
+            walkRules(r.cssRules, activeAts);
+          }
+        } catch {}
+      }
+    }
+
+    for (let s = 0; s < document.styleSheets.length; s++) {
+      const sheet = document.styleSheets[s];
+      try { walkRules(sheet.cssRules || [], []); } catch {}
+    }
+
+    return { props, byProp };
+  }
+
+  function pickWinner(candidates) {
+    if (!candidates || candidates.length === 0) return null;
+    let best = candidates[0];
+    for (let i = 1; i < candidates.length; i++) {
+      const c = candidates[i];
+      if (best.imp !== c.imp) { best = c.imp ? c : best; continue; }
+      if (best.sp !== c.sp) { best = c.sp > best.sp ? c : best; continue; }
+      if (best.ord !== c.ord) { best = c.ord > best.ord ? c : best; continue; }
+    }
+    return best;
+  }
+
   function rulesProps(el) {
     const set = new Set();
     // Add inline styles (explicit)
@@ -222,7 +344,8 @@ window.__STYLE_DUMPER__ = function(params) {
   function collect(el) {
     let styles;
     if (mode === 'rules') {
-      styles = computedSubset(el, rulesProps(el));
+      const { props, byProp } = collectPropertyCandidates(el);
+      styles = computedSubset(el, props);
       // Filter out values equal to UA baseline to reduce noise
       try {
         const base = getBaselineForTag(el.tagName.toLowerCase());
@@ -234,6 +357,35 @@ window.__STYLE_DUMPER__ = function(params) {
         }
         styles = filtered;
       } catch {}
+      // Build compact source map for the remaining styles
+      const sources = {};
+      for (const prop in styles) {
+        if (!Object.prototype.hasOwnProperty.call(styles, prop)) continue;
+        const winner = pickWinner(byProp.get(prop) || []);
+        if (!winner) continue;
+        const meta = { source: winner.src, isImportant: !!winner.imp };
+        if (winner.src === 'rule') {
+          meta.selector = winner.sel;
+          meta.specificity = winner.sp;
+          // Active media queries context (already filtered by matchMedia)
+          if (winner.at && winner.at.length) {
+            const medias = [];
+            for (let i = 0; i < winner.at.length; i++) {
+              const at = winner.at[i];
+              if (typeof at === 'string' && at.startsWith('@media ')) {
+                medias.push(at.slice(7).trim());
+              }
+            }
+            if (medias.length === 1) meta.media = medias[0];
+            else if (medias.length > 1) meta.media = medias;
+          }
+        }
+        // Heuristic: overriding inline or !important generally requires !important
+        meta.requiresImportant = (winner.src === 'inline') || !!winner.imp;
+        sources[prop] = meta;
+      }
+      // Attach sources map
+      var styleSources = sources;
     }
     else styles = toObj(getComputedStyle(el));
 
@@ -244,6 +396,7 @@ window.__STYLE_DUMPER__ = function(params) {
       class: el.className || null,
       text_preview: (el.textContent || '').trim().slice(0, 160),
       styles,
+      sources: (typeof styleSources !== 'undefined') ? styleSources : undefined,
       pseudo: {}
     };
     if (pseudo) {
@@ -288,7 +441,7 @@ window.__STYLE_DUMPER__ = function(params) {
   const nodes = children ? [root, ...root.querySelectorAll('*')] : [root];
   const t0 = performance.now();
   const result = nodes.map(collect);
-  const stats = { nodeCount: nodes.length, durationMs: Math.round(performance.now()-t0) };
+  const stats = { nodeCount: nodes.length, durationMs: Math.round(performance.now() - t0) };
 
   if (!html) {
     if (__baselineIframe && __baselineIframe.parentNode) { try { __baselineIframe.parentNode.removeChild(__baselineIframe); } catch {} }

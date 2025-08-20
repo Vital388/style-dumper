@@ -120,31 +120,28 @@ function initializeEventListeners() {
     console.log('Copy button clicked');
     const text = $('#output').textContent;
     if (!text) return;
-    
-    const doExecCommandFallback = () => {
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-        document.execCommand('copy');
-        showFeedback($('#copy'), 'Copied!');
-      } catch (err) {
-        console.error('Copy failed:', err);
-        showFeedback($('#copy'), 'Copy failed', true);
-      }
-      document.body.removeChild(textArea);
-    };
-    
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text)
-        .then(() => showFeedback($('#copy'), 'Copied!'))
-        .catch(err => {
-          console.warn('Clipboard API failed, falling back:', err);
-          doExecCommandFallback();
-        });
+    // Use execCommand path only to avoid DevTools permissions policy block of Clipboard API
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    let success = false;
+    try {
+      success = document.execCommand('copy');
+    } catch (err) {
+      success = false;
+    }
+    document.body.removeChild(textArea);
+    if (success) {
+      showFeedback($('#copy'), 'Copied!');
     } else {
-      doExecCommandFallback();
+      showFeedback($('#copy'), 'Copy failed', true);
     }
   });
 
