@@ -121,18 +121,31 @@ function initializeEventListeners() {
     const text = $('#output').textContent;
     if (!text) return;
     
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.select();
-    try {
-      document.execCommand('copy');
-      showFeedback($('#copy'), 'Copied!');
-    } catch (err) {
-      console.error('Copy failed:', err);
-      showFeedback($('#copy'), 'Copy failed', true);
+    const doExecCommandFallback = () => {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showFeedback($('#copy'), 'Copied!');
+      } catch (err) {
+        console.error('Copy failed:', err);
+        showFeedback($('#copy'), 'Copy failed', true);
+      }
+      document.body.removeChild(textArea);
+    };
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => showFeedback($('#copy'), 'Copied!'))
+        .catch(err => {
+          console.warn('Clipboard API failed, falling back:', err);
+          doExecCommandFallback();
+        });
+    } else {
+      doExecCommandFallback();
     }
-    document.body.removeChild(textArea);
   });
 
   $('#download').addEventListener('click', () => {
