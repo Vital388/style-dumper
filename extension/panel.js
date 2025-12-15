@@ -171,6 +171,17 @@ function initializeEventListeners() {
     console.log('Clear button clicked');
     clearResults();
   });
+
+  // Screenshot functionality
+  $('#screenshot-element').addEventListener('click', async () => {
+    console.log('Screenshot element button clicked');
+    await captureElementScreenshot();
+  });
+
+  $('#screenshot-page').addEventListener('click', async () => {
+    console.log('Screenshot page button clicked');
+    await capturePageScreenshot();
+  });
 }
 
 async function performExtraction() {
@@ -308,4 +319,238 @@ function showFeedback(button, message, isError = false) {
     button.textContent = originalText;
     button.style.background = '';
   }, 1500);
+}
+
+// Screenshot functionality
+function setScreenshotStatus(message, isError = false) {
+  const status = $('#screenshot-status');
+  status.textContent = message;
+  status.style.color = isError ? '#dc3545' : '#28a745';
+  if (message) {
+    setTimeout(() => {
+      status.textContent = '';
+    }, 3000);
+  }
+}
+
+async function capturePageScreenshot() {
+  const btn = $('#screenshot-page');
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = '<span class="btn-icon">⏳</span>Capturing...';
+  btn.disabled = true;
+  
+  try {
+    setScreenshotStatus('Capturing page...');
+    
+    // Get page title for filename
+    const pageInfo = await new Promise((resolve) => {
+      chrome.devtools.inspectedWindow.eval(
+        `({ title: document.title, hostname: location.hostname })`,
+        (result, err) => resolve(err ? {} : result)
+      );
+    });
+    
+    // Request screenshot from background script
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ action: 'captureVisibleTab' }, resolve);
+    });
+    
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    
+    // Generate filename with timestamp
+    const filename = generateFilename('page', pageInfo.hostname, pageInfo.title);
+    
+    // Download the screenshot
+    downloadScreenshot(response.dataUrl, filename);
+    setScreenshotStatus('Page screenshot saved!');
+    
+  } catch (error) {
+    console.error('Page screenshot failed:', error);
+    setScreenshotStatus('Failed: ' + error.message, true);
+  } finally {
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+  }
+}
+
+async function captureElementScreenshot() {
+  const btn = $('#screenshot-element');
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = '<span class="btn-icon">⏳</span>Capturing...';
+  btn.disabled = true;
+  
+  try {
+    setScreenshotStatus('Getting element bounds...');
+    
+    // Get the target element based on current selection
+    const params = getExtractionParams();
+    
+    // Get element bounds and info from the page
+    const boundsResult = await new Promise((resolve) => {
+      const code = params.selector 
+        ? `(function() {
+            const el = document.querySelector(${JSON.stringify(params.selector)});
+            if (!el) return { error: 'Element not found' };
+            const rect = el.getBoundingClientRect();
+            return {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+              devicePixelRatio: window.devicePixelRatio || 1,
+              scrollX: window.scrollX,
+              scrollY: window.scrollY,
+              tagName: el.tagName.toLowerCase(),
+              id: el.id || '',
+              className: el.className || '',
+              hostname: location.hostname
+            };
+          })()`
+        : `(function() {
+            const el = $0;
+            if (!el || !(el instanceof Element)) return { error: 'No element selected. Select an element in DevTools Elements panel first.' };
+            const rect = el.getBoundingClientRect();
+            return {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+              devicePixelRatio: window.devicePixelRatio || 1,
+              scrollX: window.scrollX,
+              scrollY: window.scrollY,
+              tagName: el.tagName.toLowerCase(),
+              id: el.id || '',
+              className: el.className || '',
+              hostname: location.hostname
+            };
+          })()`;
+      
+      chrome.devtools.inspectedWindow.eval(code, (result, err) => {
+        if (err) {
+          resolve({ error: err.description || 'Failed to get element bounds' });
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    
+    if (boundsResult.error) {
+      throw new Error(boundsResult.error);
+    }
+    
+    if (boundsResult.width === 0 || boundsResult.height === 0) {
+      throw new Error('Element has zero dimensions');
+    }
+    
+    setScreenshotStatus('Capturing screenshot...');
+    
+    // Request screenshot from background script
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ 
+        action: 'captureElement',
+        bounds: boundsResult,
+        devicePixelRatio: boundsResult.devicePixelRatio
+      }, resolve);
+    });
+    
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    
+    // Crop the screenshot to the element bounds
+    const croppedDataUrl = await cropImage(
+      response.dataUrl,
+      boundsResult.x,
+      boundsResult.y,
+      boundsResult.width,
+      boundsResult.height,
+      boundsResult.devicePixelRatio
+    );
+    
+    // Generate filename with element info
+    const elementIdentifier = boundsResult.id || 
+      (boundsResult.className ? boundsResult.className.split(' ')[0] : '') || 
+      boundsResult.tagName;
+    const filename = generateFilename('element', boundsResult.hostname, elementIdentifier);
+    
+    // Download the cropped screenshot
+    downloadScreenshot(croppedDataUrl, filename);
+    setScreenshotStatus('Element screenshot saved!');
+    
+  } catch (error) {
+    console.error('Element screenshot failed:', error);
+    setScreenshotStatus('Failed: ' + error.message, true);
+  } finally {
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+  }
+}
+
+function cropImage(dataUrl, x, y, width, height, devicePixelRatio = 1) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Account for device pixel ratio
+      const dpr = devicePixelRatio;
+      const cropX = Math.max(0, x * dpr);
+      const cropY = Math.max(0, y * dpr);
+      const cropWidth = Math.min(width * dpr, img.width - cropX);
+      const cropHeight = Math.min(height * dpr, img.height - cropY);
+      
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+      
+      ctx.drawImage(
+        img,
+        cropX, cropY, cropWidth, cropHeight,
+        0, 0, cropWidth, cropHeight
+      );
+      
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('Failed to load image for cropping'));
+    img.src = dataUrl;
+  });
+}
+
+function downloadScreenshot(dataUrl, filename) {
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = filename;
+  link.click();
+}
+
+function generateFilename(type, hostname, identifier) {
+  // Clean hostname (remove www. and special chars)
+  const cleanHost = (hostname || 'page')
+    .replace(/^www\./, '')
+    .replace(/[^a-zA-Z0-9.-]/g, '_')
+    .substring(0, 30);
+  
+  // Clean identifier (remove special chars, limit length)
+  const cleanId = (identifier || '')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .substring(0, 30);
+  
+  // Generate timestamp: YYYYMMDD-HHmmss
+  const now = new Date();
+  const timestamp = now.getFullYear().toString() +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    String(now.getDate()).padStart(2, '0') + '-' +
+    String(now.getHours()).padStart(2, '0') +
+    String(now.getMinutes()).padStart(2, '0') +
+    String(now.getSeconds()).padStart(2, '0');
+  
+  // Build filename: type_hostname_identifier_timestamp.png
+  const parts = [type, cleanHost];
+  if (cleanId) parts.push(cleanId);
+  parts.push(timestamp);
+  
+  return parts.join('_') + '.png';
 }
