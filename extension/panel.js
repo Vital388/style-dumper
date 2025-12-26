@@ -340,9 +340,9 @@ async function capturePageScreenshot() {
   btn.disabled = true;
   
   try {
-    setScreenshotStatus('Capturing page...');
+    setScreenshotStatus('Capturing full page...');
     
-    // Get page title for filename
+    // Get page title and tab ID for filename
     const pageInfo = await new Promise((resolve) => {
       chrome.devtools.inspectedWindow.eval(
         `({ title: document.title, hostname: location.hostname })`,
@@ -350,9 +350,15 @@ async function capturePageScreenshot() {
       );
     });
     
-    // Request screenshot from background script
+    // Get the inspected tab ID
+    const tabId = chrome.devtools.inspectedWindow.tabId;
+    
+    // Request full page screenshot from background script
     const response = await new Promise((resolve) => {
-      chrome.runtime.sendMessage({ action: 'captureVisibleTab' }, resolve);
+      chrome.runtime.sendMessage({ 
+        action: 'captureFullPage',
+        tabId: tabId
+      }, resolve);
     });
     
     if (response.error) {
@@ -364,7 +370,7 @@ async function capturePageScreenshot() {
     
     // Download the screenshot
     downloadScreenshot(response.dataUrl, filename);
-    setScreenshotStatus('Page screenshot saved!');
+    setScreenshotStatus('Full page screenshot saved!');
     
   } catch (error) {
     console.error('Page screenshot failed:', error);
